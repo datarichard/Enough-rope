@@ -1,2 +1,4 @@
 # Enough-rope
-Do population-estimates of mental health levels in Australia vary with suicide rates?
+Do suicide rates in Australia vary with population-level estimates of mental health?  
+
+Licensed under [CC-BY-SA-4.0](https://creativecommons.org/licenses/by-sa/4.0/)
