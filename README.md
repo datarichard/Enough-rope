@@ -142,8 +142,10 @@ in September (blue), an increase of over ten percent.
 
 <br>
 
-Thus the estimated proportion of depressed people in Victoria tended to
-diverge from the incidence of suicide over the same period.
+Thus the estimated proportion of reported depression in Victoria
+increased, while we did not observe concomitant increases in the
+incidence of suicide. Instead, suicide tended to diverge from depression
+over the same period.
 
 #### Conclusions
 
