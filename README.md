@@ -5,9 +5,6 @@ Do suicide rates in Australia vary with population-level estimates of
 mental health?  
 (Date rendered: 2020-10-31)
 
-For submission to
-[MJA](https://www.mja.com.au/journal/mja-instructions-authors-types-articles-published-mja#Perspectives)
-
 Licensed under
 [CC-BY-SA-4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 
