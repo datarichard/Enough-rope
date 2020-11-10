@@ -1,0 +1,557 @@
+---
+title: "The uncoupling of population mental ill-health and the suicide rate"
+author: "N Glozier & RW Morris"
+output: 
+  word_document:
+    reference_doc: MJA-style.docx
+editor_options: 
+  chunk_output_type: console
+bibliography: mja_references.bib
+csl: vancouver-author-date.csl
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.path = "../results/")
+
+library(tidyverse)
+library(glue)
+library(lubridate)
+library(readxl)
+library(scales)
+library(ggthemes)
+```
+
+
+Affiliation: The University of Sydney, School of Medicine, NSW, Australia  
+
+***
+
+For submission to [MJA](https://www.mja.com.au/journal/mja-instructions-authors-types-articles-published-mja#Perspectives)  
+
+Date rendered: `r Sys.Date()`
+
+
+
+<br><br><br><br>
+
+`Abstract (100 words)`  
+
+Suicide modelling of COVIDs effects have resulted in much higher predictions than observed following the GFC. The models’ assumptions rely upon historical temporal links between the economy, suicide and mental ill-health continuing. In the past decade these have become uncoupled. We use a large community survey of Australian’s mental ill-health (n= 243,000) and State coronial data, during the unique counterfactual experiment of one State (VIC) lock down to show that these remain uncoupled during COIVD. The mental health of Victorians has plummeted compared to other States whilst there has been no change in their suicide rate compared to previous years.  
+
+```{r ABS_funs}
+read_abs <- function(.path, .sheet, .range, .head) {
+  
+  # rename_age_cols = c(
+  #   `Age18to24` = "18–24", 
+  #   `Age25to34` = "25–34", 
+  #   `Age35to44` = "35–44", 
+  #   `Age45to54` = "45–54", 
+  #   `Age55to64` = "55–64", 
+  #   `Age65to74` = "65–74",
+  #   `Age75plus` = "75 years \nand over" 
+  #   )
+  
+  rename_age_cols = c(
+    `18–24` = "18–24", 
+    `25–34` = "25–34", 
+    `35–44` = "35–44", 
+    `45–54` = "45–54", 
+    `55–64` = "55–64", 
+    `65–74` = "65–74",
+    `75+` = "75 years \nand over" 
+    )
+  
+  .df <- read_excel(path = .path, 
+                    sheet = .sheet,
+                    range = cell_rows(.range),
+                    na = "np")
+  
+  abs_colnames <- read_excel(path = .path, 
+                             sheet = .sheet,
+                             range = cell_rows(.head)) %>%
+    colnames()
+
+  colnames(.df)[-1] <- abs_colnames
+  
+  .df %>%
+    mutate(Demographic = colnames(.)[1]) %>%
+    rename(Distress = 1) %>%
+    select(1, Demographic, !!!rename_age_cols, starts_with("Total")) %>%
+    rename_at(vars(starts_with("Total")), ~"Total")-> .df
+  
+  return(.df)
+}
+
+bind_abs_ranges <- function(.path, .sheet, .ranges, .header) {
+  
+  result = tibble()
+  for (cell_range in .ranges) {
+    df <- read_abs(.path = .path,
+                   .sheet = .sheet,
+                   .range = cell_range,
+                   .head = .header)
+    result <- bind_rows(result, df)
+  }
+  
+  result %>%
+    filter(str_detect(Distress, "Low|Moderate|High|Very")) %>%
+    mutate(Distress = case_when(
+      str_detect(Distress, "/") ~ "Very high or high",
+      str_detect(Distress, "Very") ~ "Very high",
+      str_detect(Distress, "High") ~ "High",
+      str_detect(Distress, "Moderate") ~ "Moderate",
+      str_detect(Distress, "Low") ~ "Low",
+      TRUE ~ NA_character_)) %>%
+    gather(key = "Age", value = "Percent", `18–24`:Total) -> results
+  
+  return(results)
+}
+```
+
+```{r national_distress_data}
+males = 8:14
+females = 16:22
+persons = 24:30
+
+errors <- bind_abs_ranges(.path = "../data/43640do004_20112012.xls",
+                          .sheet = "Table_4_4",
+                          .ranges = list(males, females, persons),
+                          .header = 6) %>%
+  mutate(Year = 2012) %>%
+  rename(Error = Percent)
+
+distress_2012 <- bind_abs_ranges(.path = "../data/43640do004_20112012.xls",
+                                 .sheet = "Table_4_3",
+                                 .ranges = list(males, females, persons),
+                                 .header = 6) %>%
+  mutate(Year = 2012) %>%
+  left_join(errors)
+
+errors <- bind_abs_ranges(.path = "../data/4364055001do007_20142015.xls",
+                          .sheet = "Table_7_4",
+                          .ranges = list(males, females, persons),
+                          .header = 6) %>%
+  mutate(Year = 2015) %>%
+  rename(Error = Percent)
+
+distress_2015 <- bind_abs_ranges(.path = "../data/4364055001do007_20142015.xls",
+                                 .sheet = "Table_7_3",
+                                 .ranges = list(males, females, persons),
+                                 .header = 6) %>%
+  mutate(Year = 2015) %>%
+  left_join(errors)
+
+errors <- bind_abs_ranges(.path = "../data/4364055001do007_20172018.xls",
+                          .sheet = "Table 7.4_MoEs",
+                          .ranges = list(males+1, females+1, persons+1),
+                          .header = 7) %>%
+  mutate(Year = 2018) %>%
+  rename(Error = Percent)
+
+distress_2018 <- bind_abs_ranges(.path = "../data/4364055001do007_20172018.xls",
+                                 .sheet = "Table 7.3_Proportions",
+                                 .ranges = list(males+1, females+1, persons+1),
+                                 .header = 7) %>%
+  mutate(Year = 2018) %>%
+  left_join(errors)
+
+
+
+distress <- bind_rows(distress_2012, distress_2015, distress_2018) %>%
+  filter(Demographic == "Persons", Distress == "Low", Age %in% c("Total", "18–24")) %>%
+  mutate(Distressed = 100 - Percent)
+
+# set up for in-text comparisons below
+distressed_2012 <- filter(distress, Year == 2012, Age == "Total") %>% pull(Distressed)
+distressed_2012_err <- filter(distress, Year == 2012, Age == "Total") %>% pull(Error)
+distressed_2018 <- filter(distress, Year == 2018, Age == "Total") %>% pull(Distressed)
+distressed_2018_err <- filter(distress, Year == 2018, Age == "Total") %>% pull(Error)
+distressed_2012_young <- filter(distress, Year == 2012, Age == "18–24") %>% pull(Distressed)
+distressed_2012_young_err <- filter(distress, Year == 2012, Age == "18–24") %>% pull(Error)
+distressed_2018_young <- filter(distress, Year == 2018, Age == "18–24") %>% pull(Distressed)
+distressed_2018_young_err <- filter(distress, Year == 2018, Age == "18–24") %>% pull(Error)
+```
+
+```{r national_suicide_data}
+# suicides <- read_excel("data/AIHW-Suicide-and-Self-harm-Monitoring-NMD-Suicide-ICD-10-X60-X84-Y87-0.xlsx",
+#                        sheet = "Table NMD S2",
+#                        range = cell_rows(2:32)) %>%
+#   gather("Year", "val", `1907`:`2018`) %>%
+#   filter(Year > 2009) %>%
+#   mutate(Measure = recode(Measure, `Age-specific rate (per 100,000)` = "Rate")) %>%
+#   spread(Measure, val) %>%
+#   select(-Mechanism, Demographic = Sex, Age = `Age group`, Year, Number, Rate) %>% 
+#   mutate(Number = as.integer(Number), Rate = as.numeric(Rate))
+
+youth_suicides <- read_excel("../data/AIHW-Suicide-and-Self-harm-Monitoring-NMD-Suicide-ICD-10-X60-X84-Y87-0.xlsx",
+                       sheet = "Table NMD S6",
+                       range = cell_rows(2:11)) %>%
+  gather("Year", "val", `2010`:`2018`) %>%
+  mutate(Measure = recode(Measure, `Age-specific rate (per 100,000)` = "Rate")) %>%
+  filter(Measure %in% c("Number", "Rate")) %>%
+  spread(Measure, val) %>%
+  mutate(Number = as.integer(Number), Rate = as.numeric(Rate)) %>%
+  select(Age = `Age group`, Year, Rate)
+
+
+
+total_suicides = read_excel("../data/Data-tables-Australia-s-health-2020-Suicide-and-intentional-self-harm-snapshot.xlsx",
+           sheet = "Figure 2",
+           range = cell_rows(2:11)) %>%
+  fill(Sex) %>%
+  filter(Sex == "Persons") %>%
+  select(Rates = "...2", everything(), -Sex, -`2009`) %>%
+  mutate(Rates = recode(Rates, `Value` = "Rate")) %>%
+  gather("Year", "val", `2010`:`2018`) %>%
+  spread(Rates, val) %>%
+  mutate(Age = "Total") %>%
+  rename(Lower_bound = `Lower bound`, Upper_bound = `Upper bound`) %>%
+  bind_rows(youth_suicides)
+
+suicides_by_sex <- read_excel("../data/Data-tables-Australia-s-health-2020-Suicide-and-intentional-self-harm-snapshot.xlsx",
+           sheet = "Figure 2",
+           range = cell_rows(2:11)) %>%
+  fill(Sex) %>%
+  filter(Sex %in% c("Females", "Males"), `...2` == "Value") %>%
+  select(everything(), -`2009`, -`...2`) %>%
+  gather("Year", "val", `2010`:`2018`) %>%
+  spread(Sex, val)
+
+suicides_by_age = read_excel("../data/Data-tables-Australia-s-health-2020-Suicide-and-intentional-self-harm-snapshot.xlsx",
+                            sheet = "Figure 3",
+                            range = cell_rows(4:17),
+                            col_names = c("Age", "Male_p", "Female_p", "skip1",
+                                          "Male_n", "Female_n", "skip2",
+                                          "Male_r", "Female_r")) %>%
+  select(-starts_with("skip"))
+
+
+max_suicide_rate <- suicides_by_age %>%
+  select(Age, men = Male_r, women = Female_r) %>%
+  gather(Gender, Rate, men:women) %>%
+  filter(Rate == max(Rate)) %>%
+  as.matrix()
+
+
+national_suicide_rate_2018 <- filter(total_suicides, Year == 2018, Age == "Total") %>%
+  pull(Rate)
+```
+
+```{r facebook_data}
+#-----------------Main survey by country-----------------
+csvs <- list.files("../data/", pattern = "reg_full\\.csv$", full.names = TRUE)
+
+raw_data_l <- lapply(csvs, read_csv)
+
+raw_data_regions <- bind_rows(raw_data_l)
+
+oz_regions_5 <- raw_data_regions %>%
+  filter(country_agg == "Australia" & gender == "overall" & age_bucket == "overall") %>%
+  mutate(state = fct_lump(region_agg, 5, w = total_responses)) %>%
+  group_by(state, date) %>%
+  # aggregate, weighted by total responses, to combine Tasmania and ACT:
+  summarise(pct_cli_weighted = weighted.mean(pct_cli_weighted, w = total_responses) / 100,
+            pct_feel_depressed_none_time_weighted = weighted.mean(
+              pct_feel_depressed_none_time_weighted, w = total_responses) / 100,
+            pct_feel_depressed_little_time_weighted = weighted.mean(
+              pct_feel_depressed_little_time_weighted, w = total_responses) / 100,
+            pct_feel_depressed_some_time_weighted = weighted.mean(
+              pct_feel_depressed_some_time_weighted, w = total_responses) / 100,
+            pct_feel_depressed_most_time_weighted = weighted.mean(
+              pct_feel_depressed_most_time_weighted, w = total_responses) / 100,
+            pct_feel_depressed_all_time_weighted = weighted.mean(
+              pct_feel_depressed_all_time_weighted, w = total_responses) / 100,
+            total_responses = sum(total_responses)
+            ) %>%
+  ungroup() %>%
+  mutate(state = fct_reorder(state, -total_responses, .fun = sum)) 
+```
+
+<br><br><br>
+
+
+### Perspective  
+
+###### Australia’s unique counterfactual study and the implications for the health response
+
+There is much debate around the potential impact of the COVID-19 on mental ill-health and suicide mortality in Australia, with the prevailing view being that both will rise dramatically. One widely publicized model’s scenario suggested increases in suicide rates of 13.7-22.3%  [@BMC2020] – i.e., representing an actual increase of 5367-6866 suicide deaths over five years, or an extra 53-68 suicides/million/year. To put this into context the actual excess suicide deaths in the over-15 age group in 2009, the year after the financial crisis and during the subsequent recession in 59 countries with a combined population of over a billion people was 4884 (95% CI 3907 to 5860); or 3.9 suicides/million/year. Models for other nations beyond Australia also have high estimates [@tang2020]. One key factor in these models is the use of large increases in population-estimates of psychological distress as a final mediator of the effects of socio-economic factors on suicide rates.  
+
+Historically the suicide rate and population mental ill-health have changed concordantly over time with socio-economic factors. Australia’s age standardized suicide rate in 2018 was `r national_suicide_rate_2018`/100,000, with, contrary to media attention, middle aged men continuing to have the highest rates (`r max_suicide_rate[, 'Rate']`/100,000). The peak annual age-standardised rate for males in the last century occurred in 1930 (29.8 deaths per 100,000 population), during the Great Depression—a period of high unemployment, particularly among males, but fell to 12/100,000 in 1944. The female rate remained remarkably constant at 4.5-6/100,000 until the temporary rise in both male and female suicide rates in the 1960s attributed, in part, to the availability, and then restriction of barbiturate sedatives [@harrison2014; @oliver1973; @whitlock1975]. Likewise, rates of suicide by use of firearms declined steeply for both males and females from 1987 after the introduction of gun control restrictions in some states of Australia. The more limited data for the mental health of the population also show temporal changes correlating with the unemployment rate although changing measures preclude accurate comparisons.  
+
+However in Australia’s long period of economic stability since 2000 these temporal correlations between economic factors and mental health/suicide appear to be become unlinked. Suicide rates have remained historically low and stable, oscillating between `r min(suicides_by_sex$Males)`-`r max(suicides_by_sex$Males)`/100,000 for men and `r min(suicides_by_sex$Females)`-`r max(suicides_by_sex$Females)`/100,000 in women, with few difference seen in any particular demographic, although possibly some increase in the 18-24 age group. Conversely there have been obvious recent rises in mental ill-health, usually measured as psychological distress in Australia. The Australian Bureau of Statistics (ABS) estimates the proportion of the population with “low”, “moderate”, “high” or “very high” levels of mental ill-health, psychological distress from the National Health Survey.  The proportion of people reporting any level of distress greater than “low" (which has the benefit of using the largest proportion with the smallest associated error) has risen from `r distressed_2012`% (±`r distressed_2012_err`) in 2011-12 to `r distressed_2018`% (±`r distressed_2018_err`) by 2018. The proportion of distressed young people has increased by `r distressed_2018_young - distressed_2012_young`% from `r distressed_2012_young` (±`r distressed_2012_young_err`) percent in 2012 to `r distressed_2018_young` (±`r distressed_2018_young_err`) percent in 2018. This is mirrored in the prevalence of the population reporting mental health conditions. In 2017-18, 20.1% Australians had a mental or behavioural condition, which has increased linearly every 3 years from 13.4% in 2011-12. With no concurrent temporal changes in unemployment or job insecurity this really leaves only one obvious societal change as the likely culprit (*hint*: social media).  
+
+<br>
+
+```{r plot_distress, fig.height=6, fig.width=8, dpi = 600}
+distress %>%
+  mutate(Age = recode(Age, 
+                      `18–24` = "18–24 year olds",
+                      `Total` = "All Adults")) -> df
+
+write_csv(df, "../results/distressed.csv")
+
+ggplot(df, aes(x = Year, y = Distressed)) +
+  geom_ribbon(aes(ymin = Distressed - Error, ymax = Distressed + Error), alpha = 0.1) +
+  geom_line(aes(color = Age)) +
+  geom_segment(y=25, yend=55, x=2011.15, xend=2011.15, lwd=0.5, colour="grey50", lineend="square") +
+  geom_segment(y=23.5, yend=23.5, x=2012, xend=2018, lwd=0.5, colour="grey50", lineend="square") +
+  scale_x_continuous(breaks = c(2012, 2015, 2018), limits = c(2011.5, 2018.5)) +
+  scale_y_continuous(label = scales::percent_format(accuracy = 1, scale = 1), 
+                     limits = c(25, 55),
+                     breaks = c(25, 35, 45, 55)
+                     ) +
+  labs(subtitle = "Percentage (±95% CI) of people with distress",
+       x = "", y = "", caption = "Source: ABS National Health Survey") +
+  facet_wrap(~ Age, scales = "free_y") +
+  theme_few() + # theme_few
+  theme(
+    legend.position = "none",
+    panel.border = element_rect(colour = NA),
+    axis.ticks.length = unit(7,"pt"),
+    strip.text = element_text(hjust = 0)
+    # panel.grid.major.y = element_line(color = "grey50", size = 0.25, linetype = 1)
+    ) +
+  scale_color_manual(values = c("tomato1", "dodgerblue2"))
+```
+
+<br>
+
+Has this unlinking between suicide rates and population mental health continued during COVID, or as suggested by the modelers, have they merged again. Australia provides a unique counterfactual case study for this. Victoria, along with the rest of Australia, successfully reduced COVID-19 cases to negligible levels by early June (the 7-day trailing average was 3 new cases/day on June 11th, www.covid19data.com.au). However a second wave forced the State government to shut borders and reintroduce severe lockdown restrictions across Melbourne and surrounding regions in early July, followed by the declaration of a state-of-disaster on August 2nd with increased restrictions for at least six weeks, making Victoria a good case-study to examine the early impact of lockdown on community distress levels and suicide, relative to two counterfactuals (i) contemporaneous trends in mental ill-health in other states and (ii) its historic suicide rate.  
+
+<br>
+
+#### Method
+
+```{r facebook_summary_data, include=F}
+# Sample size of Facebook data for Victoria and Australia
+fb_sample_size <- oz_regions_5 %>%
+  group_by(state) %>%
+  summarize(
+    N = sum(total_responses)
+  ) %>%
+  add_row(state = "Total", N = sum(.$N)) %>%
+  column_to_rownames("state")
+
+# Average distress levels by month and State in 2020
+distress_by_month <- oz_regions_5 %>%
+  mutate(
+    pct_depressed = 1 - pct_feel_depressed_none_time_weighted,
+    Month = month(date, label = T)) %>%
+  group_by(state, Month) %>%
+  summarise(
+    depressed = round(mean(pct_depressed)*100, 1),
+  ) %>%
+  spread(Month, depressed) %>%
+  column_to_rownames("state")
+
+# Distress change between May and September
+distress_change <- oz_regions_5 %>%
+  mutate(
+    pct_depressed = 1 - pct_feel_depressed_none_time_weighted,
+    Month = month(date, label = T)) %>%
+  group_by(state, Month) %>%
+  summarise(
+    depressed = mean(pct_depressed),
+  ) %>%
+  spread(Month, depressed) %>%
+  mutate(
+    delta = Sep - May,
+    pdelta = delta/May,
+    subgroup = if_else(state == "Victoria", "VIC", "rest")
+  ) %>%
+  group_by(subgroup) %>%
+  summarise(delta = mean(delta)*100, pdelta = mean(pdelta)*100) %>%
+  column_to_rownames("subgroup")
+```
+
+_Victoria's mental health over 2020_  
+
+Global Facebook users were invited to take off-platform surveys of COVID-19-related symptoms. The data were made available as part of the COVID-19 Symptom Data Challenge [@kreuter2020]. Every day, a new representative sample of Facebook users over 18 years old was invited to consent and participate via an invitation at the top of their Facebook News Feed and the surveys were conducted by the academic partners (University of Maryland and Carnegie Mellon University). Participants reported on COVID-19 symptoms, social distancing behavior, and financial constraints. The survey data is provided in granular but aggregate form (i.e., no response-level or person-specific data). Facebook provided regionally-specific weights to reduce nonresponse and coverage bias in age and gender. The total number of responses from May 1st 2020 to September 11th 2020 was _N_ = `r format(fb_sample_size['Victoria', 'N'], big.mark = ",")` from Victoria, and *N* = `r format(fb_sample_size['Total', 'N'] - fb_sample_size['Victoria', 'N'], big.mark = ",")` from other States and Territories. Psychological distress was measured by the following question adapted from the K10 [@kessler2003]: "During the last 7 days, how often did you feel so depressed that nothing could cheer you up?" (*None, a little, some, most, or all of the time*). We report the weighted percentage of people experiencing _any_ depression (*a little, some, most, or all the time*).  
+
+<br>
+
+_Victorian Suicide Data for 2020_  
+
+Monthly suicide data was provided by the Victorian Coroner’s Court Monthly Suicide data report summarising the number of suicides per month between January to September 2020, published on October 5th.  
+
+```{r victorian_suicide_data}
+# Victorian suicides imported by hand!!!
+AD2016 = c(59, 51, 60, 44, 59, 49, 48, 58, 61, 49, 57, 56)
+AD2017 = c(62, 48, 72, 51, 52, 50, 67, 59, 40, 61, 62, 63)
+AD2018 = c(53, 51, 66, 63, 54, 54, 70, 55, 54, 67, 75, 63)
+AD2019 = c(73, 61, 54, 57, 64, 55, 54, 62, 54, 66, 55, 64)
+AD2020 = c(63, 63, 73, 52, 57, 55, 57, 61, 49, NA, NA, NA)
+
+victorian_suicides <- data.frame(
+  Month = c(1:12),
+  AD2016,
+  AD2017,
+  AD2018,
+  AD2019,
+  AD2020
+  ) %>%
+  gather("Year", "suicides", -Month) %>%
+  mutate(Year = extract_numeric(Year),
+         state = "Victoria") %>%
+  rowwise() %>%
+  mutate(date = lubridate::ymd(paste0(c(Year, Month, "01"), collapse = "-"))) %>%
+  select(state, date, suicides)
+
+cumtotal <- victorian_suicides %>%
+  mutate(Year = year(date), Month = month(date, label = T)) %>%
+  group_by(Year) %>%
+  mutate(
+    total = cumsum(suicides),
+    subgroup = if_else(Year == 2020, "2020", "before")
+    ) %>% 
+  filter(Month == "Sep") %>%
+  group_by(subgroup) %>%
+  summarise(
+    average = mean(total),
+    SD = sd(total)
+  ) %>%
+  column_to_rownames("subgroup")
+```
+<br>
+
+#### Results  
+
+Victoria’s mental health displayed a dramatic decline from May to September with the proportion of the population reporting any depression increasing by `r round(distress_change['VIC', 'delta'], 1)`% from `r distress_by_month['Victoria', 'May']`% in June to `r distress_by_month['Victoria', 'Sep']`% in September (a `r round(distress_change['VIC', 'pdelta'], 1)`% relative increase). In all other States over the same period mental health changed by less than one percent (`r round(distress_change['rest', 'delta'], 1)`%, or a `r round(distress_change['rest', 'pdelta'], 1)`% relative increase) indicating little change in population mental health, i.e., the mental health of Victorians had plummeted relative to the rest of Australia after the announcement of the lockdown in July.  
+
+Conversely the monthly tally of suicides in Victoria shows the typical slightly declining trend over 2020, from *n* = 63 in January to *n* = 49 in September. Importantly there has also been little indication of any year on year increase in the total numbers of suicides with the aggregate number by September 2020 being _n_ = `r cumtotal['2020', 'average']`, which is within one standard deviation of the rolling average to September over 2016-2019 of `r cumtotal['before', 'average']`±`r round(cumtotal['before', 'SD'], 1)` (M±SD), and fewer than the 534 reported to September in 2019.  
+
+The uncoupled trends of suicide and mental health are shown below.  
+
+<br>
+
+```{r suicide_distress_comparison, dpi=600, fig.width=5, eval=F}
+oz_regions_5 %>%
+  select(state, date, non_depressed = pct_feel_depressed_none_time_weighted) %>%
+  filter(state == "Victoria") %>%
+  full_join(victorian_suicides) %>%
+  filter(year(date) == 2020) %>%
+  mutate(
+    Month = month(date, label = FALSE),
+    depressed = (1 - non_depressed)*100) %>%
+  select(-non_depressed) -> df
+
+ggplot(df, aes(x = date, y = suicides)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(se = F, span = 2, color = "grey40") +
+  geom_smooth(aes(y = depressed), se = F, span = 2) +
+  geom_point(aes(y = depressed), color = "blue", alpha = 0.1) +
+  scale_y_continuous(sec.axis = dup_axis(
+    labels = scales::percent_format(scale = 1))
+    ) +
+  scale_x_date(labels = date_format("%b")) +
+  labs(subtitle = "Monthly suicide tally (black) and proportion depressed (blue)", 
+       y = "", x= "",
+       caption = "Victoria Coroner's Court Monthly Suicide Data Report\n
+       University of Maryland Global Symptom Survey of Facebook users") +
+  theme_test() +
+  theme(
+    axis.text.y.right = element_text(colour = "blue")
+  ) +
+  facet_wrap(~)
+```
+```{r suicide_distress_comparison2, dpi=600, fig.height=6, fig.width=8, eval=T}
+oz_regions_5 %>%
+  select(state, date, non_depressed = pct_feel_depressed_none_time_weighted) %>%
+  filter(state == "Victoria") %>%
+  full_join(victorian_suicides) %>%
+  filter(year(date) == 2020) %>%
+  mutate(depressed = (1 - non_depressed)*100) %>%
+  select(-non_depressed) %>%
+  gather("key", "val", suicides, depressed) %>%
+  mutate(key = recode_factor(key, 
+                             `suicides` = "No. of suicides",
+                             `depressed` = "Percent population depressed")) %>%
+  arrange(date) -> df
+
+write_csv(df, "../results/suicide_distress_comparison.csv")
+
+ggplot(df, aes(x = date, y = val, fill = key, color = key)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(se = F, span = 2) +
+  geom_segment(y=35, yend=75, x=as.Date("2019-12-16"), xend=as.Date("2019-12-16"), lwd=0.2, colour="grey50", lineend="square") +
+  geom_segment(y=33, yend=33, x=as.Date("2020-01-01"), xend=as.Date("2020-10-01"), lwd=0.25, colour="grey50", lineend="square") +
+  scale_x_date(
+    # breaks = seq(as.Date("2020-01-01"), as.Date("2020-10-01"), by = "months"),
+    labels = date_format("%b")
+    ) +
+  scale_y_continuous(limits = c(35, 75), breaks = c(35, 45, 55, 65, 75)) +
+  labs(subtitle = "Victorian suicide tally and depression levels in 2020", 
+       y = "", x= "",
+       caption = "Victoria Coroner's Court Monthly Suicide Data Report\n
+       University of Maryland Global Symptom Survey of Facebook users") +
+  theme_few() +
+  theme(
+    legend.position = "none",
+    panel.border = element_rect(colour = NA),
+    axis.ticks.length = unit(7,"pt"),
+    strip.text = element_text(hjust = 0)
+    ) +
+  facet_wrap(~key, scales = "free_y") +
+  scale_color_manual(values = c("tomato1", "dodgerblue2"))
+
+```
+
+<br>
+
+#### Conclusions
+
+The dissonance between the decline in mental health and the stable incidence of suicide, has several possible, and not necessarily mutually exclusive, explanations and inferences:  
+
+1. Suicide rates have become a poor indicator of community mental health in the past decade, and remain so during COVID, an inference supported by the observation that rising rates of mental distress in young people in Australia over the past few years have not been matched by increases in the suicide rate.
+2. Suicides result from a complex interplay of personal and environmental factors with many very proximal factors including access to means and substance use being strongly implicated in temporal changes. Counterintuitively the lockdown in Victoria may have reduced access to these and we may see a post lockdown increase in the suicide rate.
+3. The huge uncertainty in predicting rare events such as suicide has not been reflected in the modelling, most of which assumes (1) concordance between temporal changes in the economy, population mental ill-health and suicide, and (2) that mental health is the mediating pathway by which socio-economic factors influence suicide, resulting in such high predictions for the near future. The recent uncoupling of these two factors, which continues to be observed in Australia’s natural experiment, has major implications for how strongly we take the output from such models and allocate (increasingly scarce) health care resources accordingly.  
+
+
+<br><br>
+
+#### Appendix (do not include)  
+
+```{r distress_by_state, fig.height=7, fig.width=9, dpi=300}
+oz_regions_5 %>%
+  mutate(pct_depressed = 1 - pct_feel_depressed_none_time_weighted) %>%
+  ggplot(aes(x = date, y = pct_depressed)) +
+  geom_point(aes(size = total_responses), alpha = 0.25) +
+  geom_smooth(se = FALSE,  method = "loess", formula = "y ~ x") +
+  labs(title = "Percentage of population reporting depression in 2020",
+       subtitle = "1 — 'Feel depressed none of the time'",
+       y = "",
+       x = "",
+       size = "Sample size:",
+       caption = "Source: Facebook Symptom Survey") + 
+  scale_y_continuous(label = percent_format(accuracy = 1)) +
+  facet_wrap(~state, scales = "fixed")  +
+  theme_test()
+```
+
+<br>
+
+```{r victorian_suicides_by_month, fig.height=7, fig.width=9, dpi=300}
+victorian_suicides %>%
+  mutate(Year = year(date),
+         Month = month(date, label = F)) %>%
+  ggplot(aes(x = date, y = suicides)) +
+    geom_point() +
+    geom_smooth(se = FALSE,  span = 4, method = "loess", formula = "y ~ x") +
+    scale_x_date(labels = date_format("%b")) +
+    labs(subtitle = "Monthly suicide tally in Victoria: 2016-2019",
+         x = "", y = "",
+         caption = "Source: Victorian Coroner's Office") +
+    facet_wrap(~Year, scales = "free_x") +
+    theme_test()
+```
+
+<br><br>
+
+#### References (max 10)  
+
+<br>
+
+
