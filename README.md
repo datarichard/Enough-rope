@@ -148,7 +148,9 @@ in granular but aggregate form (i.e., no response-level or
 person-specific data). Facebook provided regionally-specific weights to
 reduce nonresponse and coverage bias in age and gender. The total number
 of responses in the sample used here was *N* = 70,607 in Victoria and
-*N* = 49,846 in New South Wales (NSW).
+*N* = 172,011 in the rest of Australia.
+
+<br>
 
 ![](results/depression_all_states-1.png)<!-- -->
 
@@ -176,6 +178,8 @@ September 2020, published on October 5th.
 The monthly suicide data for New South Wales was provided by [NSW Health
 Suicide Monitoring
 Report.](https://www.health.nsw.gov.au/mentalhealth/resources/Publications/suicide-monitoring-report-oct-20.pdf)
+
+<br>
 
 ![](results/victorian_and_nsw_suicides-1.png)<!-- -->
 

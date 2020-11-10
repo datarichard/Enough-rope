@@ -237,7 +237,9 @@ Victoria, along with the rest of Australia, successfully reduced COVID-19 cases 
 
 **The Facebook COVID-19 symptom data**. In partnership with University of Maryland (and Carnegie Mellon University), global Facebook users, including Australian users, were invited to take off-platform surveys to self-report COVID-19-related symptoms, and the data were made available as part of the [The COVID-19 Symptom Data Challenge](https://www.symptomchallenge.org). Every day, a new representative sample of Facebook users over 18 years old was invited to consent and participate. Sampled users received the invitation at the top of their News Feed and the surveys were conducted off the Facebook app by the academic partner. Participants reported on COVID-19 symptoms, social distancing behavior, financial constraints, and psychological distress. (https://ojs.ub.uni-konstanz.de/srm/article/view/7761)   
 
-Indicators for nervousness, depression, and anxiety, adapted from the K10 scale (Kessler et al. 2003), were collected as part of the survey. For example, depression was measured by the following question: "During the last 7 days, how often did you feel so depressed that nothing could cheer you up?" (*None, a little, some, most, or all of the time*). We report the weighted percentage of people experiencing _any_ depression (*a little, some, most, or all the time*). The survey data is provided in granular but aggregate form (i.e., no response-level or person-specific data). Facebook provided regionally-specific weights to reduce nonresponse and coverage bias in age and gender. The total number of responses in the sample used here was _N_ = 70,607 in Victoria and _N_ = 49,846 in New South Wales (NSW).   
+Indicators for nervousness, depression, and anxiety, adapted from the K10 scale (Kessler et al. 2003), were collected as part of the survey. For example, depression was measured by the following question: "During the last 7 days, how often did you feel so depressed that nothing could cheer you up?" (*None, a little, some, most, or all of the time*). We report the weighted percentage of people experiencing _any_ depression (*a little, some, most, or all the time*). The survey data is provided in granular but aggregate form (i.e., no response-level or person-specific data). Facebook provided regionally-specific weights to reduce nonresponse and coverage bias in age and gender. The total number of responses in the sample used here was _N_ = 70,607 in Victoria and _N_ = 172,011 in the rest of Australia.   
+
+<br>
 
 
 ```{r download_data, eval=F}
@@ -360,6 +362,8 @@ Out of all the states, Victoria clearly shows the largest change in psychologica
 **Suicide Data**. Monthly suicide data was provided by the [Victorian Coroner's Court Monthly Suicide data report](https://www.coronerscourt.vic.gov.au/sites/default/files/2020-10/Coroners%20Court%20Suicide%20Data%20Report%20-%20Report%202%20-%2005102020.pdf){target="blank"} summarising the number of suicides per month between January to September 2020, published on October 5th.  
 
 The monthly suicide data for New South Wales was provided by [NSW Health Suicide Monitoring Report.](https://www.health.nsw.gov.au/mentalhealth/resources/Publications/suicide-monitoring-report-oct-20.pdf)  
+
+<br>
 
 ```{r victorian_and_nsw_suicides}
 # Imported by hand!!!
